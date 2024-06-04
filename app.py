@@ -10,10 +10,10 @@ import os
 
 from authlib.integrations.flask_oauth2 import ResourceProtector
 from validator import Auth0JWTBearerTokenValidator
+from werkzeug.middleware.proxy_fix import ProxyFix
 
 load_dotenv()
 app = Flask(__name__)
-
 
 require_auth = ResourceProtector()
 validator = Auth0JWTBearerTokenValidator(
@@ -21,6 +21,8 @@ validator = Auth0JWTBearerTokenValidator(
     os.getenv('AUDIENCE')
 )
 require_auth.register_token_validator(validator)
+
+app.wsgi_app = ProxyFix(app.wsgi_app, x_for=1, x_proto=1, x_host=1, x_prefix=1)
 
 
 
@@ -136,10 +138,5 @@ def insert_sweepstake_response():
 
         
 
-        
-
-        
-
-
-
-
+if __name__ == '__main__':
+    app.run(debug=True)
