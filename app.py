@@ -6,21 +6,22 @@ from flask import Flask, jsonify, request
 import psycopg2 as pg2
 import psycopg2.extras
 from dotenv import load_dotenv
+
 import os
+from datetime import datetime, timezone
 
 from authlib.integrations.flask_oauth2 import ResourceProtector
-from validator import Auth0JWTBearerTokenValidator
 from werkzeug.middleware.proxy_fix import ProxyFix
 
 load_dotenv()
 app = Flask(__name__)
 
-require_auth = ResourceProtector()
-validator = Auth0JWTBearerTokenValidator(
-    os.getenv('DOMAIN'),
-    os.getenv('AUDIENCE')
-)
-require_auth.register_token_validator(validator)
+#require_auth = ResourceProtector()
+#validator = Auth0JWTBearerTokenValidator(
+#    os.getenv('DOMAIN'),
+#    os.getenv('AUDIENCE')
+#)
+#require_auth.register_token_validator(validator)
 
 app.wsgi_app = ProxyFix(app.wsgi_app, x_for=1, x_proto=1, x_host=1, x_prefix=1)
 
@@ -55,7 +56,7 @@ def get_conn():
     
 
 @app.route("/get_ages")
-@require_auth(None)
+#@require_auth(None)
 def get_ages():
     conn = get_conn()
     cur = conn.cursor()
@@ -81,51 +82,37 @@ def get_area_codes():
     return jsonify(ac_of_surveyed)
 
 
-def create_table(table_name):
-    conn = get_conn()
-    cur = conn.cursor()
-
-    cur.execute(
-            f"""CREATE TABLE IF NOT EXISTS public.{table_name}  (name text, email text, dob text, phone text, timestamp text);
-                    """)
-    
-    conn.commit()
-    conn.close()
-    cur.close()
-
 
 # play around with the Auth0, pretend that you are another website
 # Try and launch API for EC2 and have api website associated with it - based on tutorial
 @app.route('/insert_event_response', methods=['POST'])
-@require_auth("write:sweepstake_response")
+#@require_auth("write:sweepstake_response")
 def insert_sweepstake_response():
     if request.is_json: # header must be "Content-Type: application/json"
         body = request.get_json()
         #%100000 a better way to do this. Too many thigns to learn
-        body_elements = {'event':None, 
-                         'timestamp':None, 
-                         'day':None,
-                         'month':None, 
-                         'year':None, 
-                         'name':None, 
+        body_elements = {'name':None, 
                          'email':None, 
-                         'dob':None, 
-                         'phone':None}
+                         "phone_number":None, 
+                         'date_of_birth':None, 
+                         'event_name':None}
+        
         for element in body_elements:
             if element not in body.keys():
                 return {"message": f'{element} is required for request'}, 400
-            else:
-                body_elements[element] = body.get(element)
-        
-        table_name = f"{body_elements['event']}_{body_elements['month']}_{body_elements['year']}"
-        create_table(table_name)
 
+        
+
+        dt = datetime.now(timezone.utc)
 
         conn = get_conn()
         cur = conn.cursor()
+        print(f"""INSERT INTO swingcityyouth (name, email, phone_number, date_of_birth, event_name, timestamp)
+                VALUES ('{body['name']}', '{body['email']}', '{body['phone_number']}', '{body['date_of_birth']}', '{body['event_name']}', '{dt}');
+                    """)
         cur.execute(
-            f"""INSERT INTO {table_name} (name, email, dob, phone, timestamp)
-                VALUES ('{body_elements['name']}', '{body_elements['email']}', '{body_elements['dob']}', '{body_elements['phone']}', '{body_elements['timestamp']}');
+            f"""INSERT INTO swingcityyouth (name, email, phone_number, date_of_birth, event_name, timestamp)
+                VALUES ('{body['name']}', '{body['email']}', '{body['phone_number']}', '{body['date_of_birth']}', '{body['event_name']}', '{dt}');
                     """)
         conn.commit()
         conn.close()
@@ -140,3 +127,4 @@ def insert_sweepstake_response():
 
 if __name__ == '__main__':
     app.run(debug=True)
+
